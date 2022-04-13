@@ -8507,6 +8507,15 @@ async function calculateAndPrepareContentRelease(numberPullRequest){
         countSemanticRelease(message)
     })
 
+    if(major != 0){
+        minor = 0
+        patch = 0
+    }
+
+    if(major == 0 && minor != 0){
+        patch = 0
+    }
+    
     let lastTag = await findTag()
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
     let status = await gerenateReleaseNote(nextRelease, contentRelease)
@@ -8575,7 +8584,7 @@ async function findTag(){
 
 function countSemanticRelease(message){
     let length = message.split('\n')
-    if(length.length >= 3 && length.pop() != '' ){
+    if(length.length >= 3 && length.pop() != '' && major == 0 ){
         contentRelease += `- ${message} \n`
         major++
     }else{
@@ -8588,24 +8597,25 @@ function countSemanticRelease(message){
         let commitDefaultRefactor = /refactor:+\:.*/
         let commitDefaultPerf = /perf:+\:.*/
         let commitDefaultFix = /fix+\:.*/
+        let commitDefaultHotFix = /hotfix+\:.*/
         let commitDefaultBreakingChange = /([a-z]|[A-z])+\!.*/
         
         
         
-        if (commitDefaultFeat.test(message) || commitDefaultBuild.test(message) || 
+        if ((commitDefaultFeat.test(message) || commitDefaultBuild.test(message) || 
             commitDefaultChore.test(message) || commitDefaultCi.test(message) || 
             commitDefaultDocs.test(message) || commitDefaultStyle.test(message) ||
-            commitDefaultRefactor.test(message) ||commitDefaultPerf.test(message)){
+            commitDefaultRefactor.test(message) ||commitDefaultPerf.test(message)) && minor == 0){
             contentRelease += `- ${message} \n`
             minor++
         }
 
-        if (commitDefaultFix.test(message)) {
+        if ((commitDefaultFix.test(message) || commitDefaultHotFix.test(message)) && patch == 0) {
             contentRelease += `- ${message} \n`
             patch++
         }
 
-        if (commitDefaultBreakingChange.test(message)) {
+        if (commitDefaultBreakingChange.test(message) && major == 0) {
             contentRelease += `- ${message} \n`
             major++
         }
