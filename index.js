@@ -80,7 +80,7 @@ function nextTag(lastTag){
     let versions = lastTag.split('.')
     if(versions.length == 3){
         let prefix = ''
-        
+
         if(versions[0].match('[v0-9]+')){
             prefix = versions[0].split(/\d/)[0]
         }
@@ -100,8 +100,8 @@ function nextTag(lastTag){
 
         major += Number(versions[0])  
         minor += Number(versions[1]) 
-        patch += Number(versions[2]) 
-        
+        patch += Number(versions[2])
+
         return `${prefix}${major}.${minor}.${patch}`
     }
 }
@@ -125,10 +125,10 @@ function countSemanticRelease(message){
         let commitDefaultBuild = /build+\:.*/
         let commitDefaultChore = /chore+\:.*/
         let commitDefaultCi = /ci+\:.*/
-        let commitDefaultDocs = /docs:+\:.*/
-        let commitDefaultStyle = /style:+\:.*/
-        let commitDefaultRefactor = /refactor:+\:.*/
-        let commitDefaultPerf = /perf:+\:.*/
+        let commitDefaultDocs = /docs+\:.*/
+        let commitDefaultStyle = /style+\:.*/
+        let commitDefaultRefactor = /refactor+\:.*/
+        let commitDefaultPerf = /perf+\:.*/
         let commitDefaultFix = /fix+\:.*/
         let commitDefaultHotFix = /hotfix+\:.*/
         let commitDefaultBreakingChange = /([a-z]|[A-z])+\!.*/
