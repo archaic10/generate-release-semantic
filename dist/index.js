@@ -8481,22 +8481,14 @@ var contentRelease = `## What's Changed \n`
 
 async function run (){
     if(githubToken){
-        if(github.context.payload.pull_request.base.ref == github.context.payload.repository.default_branch && github.context.payload.repository.merged){
-            let dataCommits = await getCommits()
-            dataCommits.data.map(async (dataCommit)=>{
-                let {commit} = dataCommit
-                let {message} = commit
-                countSemanticRelease(message)
-            })            
-            let lastTag = await findTag()
-            let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
-            let status = await gerenateReleaseNote(nextRelease, contentRelease)
-            if(status == 201){
-                console.log('Release note created!')
-                core.setOutput('success','Release note created!')
+        let branch_event = github.context.payload.ref.split('/')[2]
+        if(branch_event == github.context.payload.repository.default_branch){
+            let {id} = github.context.payload.commits[0]
+            let numberPullRequest = await getNumberPullRequestByCommit(id)
+            if(numberPullRequest != null){
+                calculateAndPrepareContentRelease(numberPullRequest)
             }else{
-                core.setFailed('Error creating release note!')
-
+                core.setFailed('There is no pull request associated with this commit')
             }
         }else{
             core.setFailed('This action will only run when the branch is merged into the default branch!')
@@ -8506,6 +8498,38 @@ async function run (){
     }
 }
 
+async function calculateAndPrepareContentRelease(numberPullRequest){
+    let dataCommits = await getCommits(numberPullRequest)
+    
+    dataCommits.data.map(async (dataCommit)=>{
+        let {commit} = dataCommit
+        let {message} = commit
+        countSemanticRelease(message)
+    })
+
+    let lastTag = await findTag()
+    let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
+    let status = await gerenateReleaseNote(nextRelease, contentRelease)
+    if(status == 201){
+        console.log('Release note created!')
+        core.setOutput('success','Release note created!')
+    }else{
+        core.setFailed('Error creating release note!')
+    }
+}
+
+async function getNumberPullRequestByCommit(commitSha){
+    let res = await octokit.request('GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls', {
+        owner: github.context.payload.repository.owner.name,
+        repo: github.context.payload.repository.name,
+        commit_sha: commitSha
+    })
+
+    if(res.status != 200)
+        return null
+
+    return res.data.pop().number
+}
 async function gerenateReleaseNote(release, content){
     let res = await octokit.request('POST /repos/{owner}/{repo}/releases', {
         owner: github.context.payload.repository.owner.name,
@@ -8588,11 +8612,11 @@ function countSemanticRelease(message){
     }
 }
 
-async function getCommits(){
+async function getCommits(number){
     return octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/commits', {
         owner: github.context.payload.repository.owner.name,
         repo: github.context.payload.repository.name,
-        pull_number: github.context.payload.pull_request.number
+        pull_number: number
     })
 
 }
