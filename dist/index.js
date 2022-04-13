@@ -8506,15 +8506,6 @@ async function calculateAndPrepareContentRelease(numberPullRequest){
         let {message} = commit
         countSemanticRelease(message)
     })
-
-    if(major != 0){
-        minor = 0
-        patch = 0
-    }
-
-    if(major == 0 && minor != 0){
-        patch = 0
-    }
     
     let lastTag = await findTag()
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
@@ -8563,8 +8554,20 @@ function nextTag(lastTag){
         if(versions[0].match('[v0-9]+')){
             prefix = versions[0].split(/\d/)[0]
         }
-        
+
         versions[0] = versions[0].split(/([a-z]|[A-z])+\.*/).pop()
+        if(major != 0){
+            minor = 0
+            patch = 0
+            versions[1] = 0
+            versions[2] = 0
+        }
+    
+        if(major == 0 && minor != 0){
+            patch = 0
+            versions[2] = 0
+        }
+
         major += Number(versions[0])  
         minor += Number(versions[1]) 
         patch += Number(versions[2]) 
