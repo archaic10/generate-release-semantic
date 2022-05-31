@@ -165,6 +165,7 @@ function countSemanticRelease(message){
         let commitDefaultBuild = /build:[\s\S]+|build\(.+\):[\s\S]+/
         let commitDefaultChore = /chore:[\s\S]+|chore\(.+\):[\s\S]+/
         let commitDefaultCi = /ci:[\s\S]+|ci\(.+\):[\s\S]+/
+        let commitDefaultTest = /test:[\s\S]+|test\(.+\):[\s\S]+/
         let commitDefaultDocs = /docs:[\s\S]+|docs\(.+\):[\s\S]+/
         let commitDefaultStyle = /style:[\s\S]+|style\(.+\):[\s\S]+/
         let commitDefaultRefactor = /refactor:[\s\S]+|refactor\(.+\):[\s\S]+/
@@ -178,6 +179,7 @@ function countSemanticRelease(message){
         if ((commitDefaultFeat.test(message) || commitDefaultBuild.test(message) || 
             commitDefaultChore.test(message) || commitDefaultCi.test(message) || 
             commitDefaultDocs.test(message) || commitDefaultStyle.test(message) ||
+            commitDefaultTest.test(message) ||
             commitDefaultRefactor.test(message) ||commitDefaultPerf.test(message)) && minor == 0){
             contentRelease += `- ${message} \n`
             minor++
