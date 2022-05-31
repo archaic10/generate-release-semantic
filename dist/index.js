@@ -8882,6 +8882,7 @@ async function run (){
                     
                     let {status, last_release} = await getRelease(milestone)
                     if(status == 200){
+                        console.log('This pull request is associated with a milestone that has a version equal to a release, so a release will not be generated!')
                         core.setOutput('success','This pull request is associated with a milestone that has a version equal to a release, so a release will not be generated!')
                         return
                     }
