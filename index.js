@@ -18,11 +18,11 @@ async function run (){
                 let {number, milestone} = await getNumberPullRequestByCommit(id)
                 if(number != null){
                     
-                    let res = await getRelease(milestone)
-                    if(res.status == 200){
+                    let {status, last_release} = await getRelease(milestone)
+                    if(status == 200){
                         core.setOutput('success','This pull request is associated with a milestone that has a version equal to a release, so a release will not be generated!')
                     }
-                    calculateAndPrepareContentRelease(number, res.last_release)
+                    calculateAndPrepareContentRelease(number, last_release)
                 }
             }catch(error){
                 core.setFailed('There is no pull request associated with this commit!')
@@ -62,7 +62,7 @@ async function calculateAndPrepareContentRelease(numberPullRequest, last_release
     
     contentRelease += `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n`
     
-    let status = await gerenateReleaseNote(nextRelease, contentRelease)
+    let {status} = await gerenateReleaseNote(nextRelease, contentRelease)
     if(status == 201){
         console.log('Release note created!')
         core.setOutput('success','Release note created!')
@@ -217,7 +217,7 @@ async function getRelease(milestone){
                 })
             }
                 
-            return isRelease ? res.push({last_release: res.data[0].tag_name}) : {status: 404, last_release: res.data[0].tag_name}
+            return isRelease ? {status: res.status,last_release: res.data[0].tag_name} : {status: 404, last_release: res.data[0].tag_name}
         }).catch(()=>{            
             return {status: 404, last_release: null}
         })
