@@ -9031,8 +9031,6 @@ function countSemanticRelease(message){
         let commitDefaultHotFix = /hotfix:[\s\S]+|hotfix\(.+\):[\s\S]+/
         let commitDefaultBreakingChange = /[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/
         
-        
-        
         if ((commitDefaultFeat.test(message) || commitDefaultBuild.test(message) || 
             commitDefaultChore.test(message) || commitDefaultCi.test(message) || 
             commitDefaultDocs.test(message) || commitDefaultStyle.test(message) ||
@@ -9060,28 +9058,27 @@ async function getCommits(number){
         repo: github.context.payload.repository.name,
         pull_number: number
     })
-
 }
 
 async function getRelease(milestone){
     
-        let number_release = milestone != null? milestone.split(/([a-z]|[A-z])+\.*/).pop() : null
-        return octokit.request('GET /repos/{owner}/{repo}/releases', {
-            owner: github.context.payload.repository.owner.name,
-            repo: github.context.payload.repository.name
-        }).then((res)=>{
-            let isRelease = false
-            if(number_release != null){
-                res.data.map(({tag_name})=>{
-                    if(tag_name.split(/([a-z]|[A-z])+\.*/).pop() == number_release) 
-                        isRelease = true;
-                })
-            }
-                
-            return isRelease ? {status: res.status,last_release: res.data[0].tag_name} : {status: 404, last_release: res.data[0].tag_name}
-        }).catch(()=>{            
-            return {status: 404, last_release: null}
-        })
+    let number_release = milestone != null? milestone.split(/([a-z]|[A-z])+\.*/).pop() : null
+    return octokit.request('GET /repos/{owner}/{repo}/releases', {
+        owner: github.context.payload.repository.owner.name,
+        repo: github.context.payload.repository.name
+    }).then((res)=>{
+        let isRelease = false
+        if(number_release != null){
+            res.data.map(({tag_name})=>{
+                if(tag_name.split(/([a-z]|[A-z])+\.*/).pop() == number_release) 
+                    isRelease = true;
+            })
+        }
+            
+        return isRelease ? {status: res.status,last_release: res.data[0].tag_name} : {status: 404, last_release: res.data[0].tag_name}
+    }).catch(()=>{            
+        return {status: 404, last_release: null}
+    })
 
 }
 run()
