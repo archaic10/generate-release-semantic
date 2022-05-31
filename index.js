@@ -13,22 +13,31 @@ async function run (){
     if(githubToken){
         let branch_event = github.context.payload.ref.split('/')[2]
         if(branch_event == github.context.payload.repository.default_branch){
-            let {id} = github.context.payload.commits[0]
-            let numberPullRequest = await getNumberPullRequestByCommit(id)
-            if(numberPullRequest != null){
-                calculateAndPrepareContentRelease(numberPullRequest)
-            }else{
-                core.setFailed('There is no pull request associated with this commit')
+            try{
+                let {id} = github.context.payload.commits[0]
+                let {number, milestone} = await getNumberPullRequestByCommit(id)
+                console.log(number ,milestone )
+                if(number != null){
+                    
+                    let res = await getRelease(milestone)
+                    if(res.status == 200){
+                        core.setOutput('success','This pull request is associated with a milestone that has a version equal to a release, so a release will not be generated!')
+                    }
+                    calculateAndPrepareContentRelease(number, res.last_release)
+                }
+            }catch(error){
+                core.setFailed('There is no pull request associated with this commit!')
             }
         }else{
-            core.setFailed('This action will only run when the branch is merged into the default branch!')
+            core.setFailed('This action will only be performed when the branch is merged with the default branch!')
         }
     }else{
-        core.setFailed('Github token is required')
+        core.setFailed('Github token is required!')
     }
+    
 }
 
-async function calculateAndPrepareContentRelease(numberPullRequest){
+async function calculateAndPrepareContentRelease(numberPullRequest, last_release){
     let dataCommits = await getCommits(numberPullRequest)
     
     dataCommits.data.map(async (dataCommit)=>{
@@ -38,7 +47,22 @@ async function calculateAndPrepareContentRelease(numberPullRequest){
     })
     
     let lastTag = await findTag()
+    
+    if(lastTag == null){
+        if(major != 0){
+            minor = 0
+            patch = 0
+        }
+    
+        if(major == 0 && minor != 0){
+            patch = 0
+        } 
+    }
+
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
+    
+    contentRelease += `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n`
+    
     let status = await gerenateReleaseNote(nextRelease, contentRelease)
     if(status == 201){
         console.log('Release note created!')
@@ -49,36 +73,47 @@ async function calculateAndPrepareContentRelease(numberPullRequest){
 }
 
 async function getNumberPullRequestByCommit(commitSha){
+
     let res = await octokit.request('GET /repos/{owner}/{repo}/commits/{commit_sha}/pulls', {
         owner: github.context.payload.repository.owner.name,
         repo: github.context.payload.repository.name,
         commit_sha: commitSha
     })
-
-    if(res.status != 200)
-        return null
-
-    return res.data.pop().number
+    let {number, milestone} = res.data.pop();
+    
+    return {
+        number: number,
+        milestone: milestone != null ? milestone.title : null
+    }
+    
 }
 async function gerenateReleaseNote(release, content){
-    let res = await octokit.request('POST /repos/{owner}/{repo}/releases', {
-        owner: github.context.payload.repository.owner.name,
-        repo: github.context.payload.repository.name,
-        tag_name: release,
-        target_commitish: github.context.payload.repository.default_branch,
-        name: release,
-        body: content,
-        draft: false,
-        prerelease: false,
-        generate_release_notes: false
-    })
-
-    return res.status
+    try{
+        return await octokit.request('POST /repos/{owner}/{repo}/releases', {
+            owner: github.context.payload.repository.owner.name,
+            repo: github.context.payload.repository.name,
+            tag_name: release,
+            target_commitish: github.context.payload.repository.default_branch,
+            name: release,
+            body: content,
+            draft: false,
+            prerelease: false,
+            generate_release_notes: false
+        })
+    }catch{
+        console.log('Error creating Release check if there is no release for this PR!')
+        return {status: 422}
+    }
+    
 }
 
 function nextTag(lastTag){
     let versions = lastTag.split('.')
-    if(versions.length == 3){
+    if(versions.length < 3){
+        for(let x = versions.length; x < 3; x++){
+            versions[x] = '0'
+        }
+    }
         let prefix = ''
 
         if(versions[0].match('[v0-9]+')){
@@ -103,16 +138,20 @@ function nextTag(lastTag){
         patch += Number(versions[2])
 
         return `${prefix}${major}.${minor}.${patch}`
-    }
 }
 
 async function findTag(){
-    let param = {
-        owner: github.context.payload.repository.owner.name,
-        repo: github.context.payload.repository.name
+    try{
+        let param = {
+            owner: github.context.payload.repository.owner.name,
+            repo: github.context.payload.repository.name
+        }
+        let res = await octokit.request('GET /repos/{owner}/{repo}/git/refs/tags', param)
+        if(res.status == 200)
+            return res.data.pop().ref.split('/').pop()
+    }catch(error){
+        return null
     }
-    let res = await octokit.request('GET /repos/{owner}/{repo}/git/refs/tags', param)
-    return res.data.pop().ref.split('/').pop()
 }
 
 function countSemanticRelease(message){
@@ -121,17 +160,17 @@ function countSemanticRelease(message){
         contentRelease += `- ${message} \n`
         major++
     }else{
-        let commitDefaultFeat = /feat+\:.*/
-        let commitDefaultBuild = /build+\:.*/
-        let commitDefaultChore = /chore+\:.*/
-        let commitDefaultCi = /ci+\:.*/
-        let commitDefaultDocs = /docs+\:.*/
-        let commitDefaultStyle = /style+\:.*/
-        let commitDefaultRefactor = /refactor+\:.*/
-        let commitDefaultPerf = /perf+\:.*/
-        let commitDefaultFix = /fix+\:.*/
-        let commitDefaultHotFix = /hotfix+\:.*/
-        let commitDefaultBreakingChange = /([a-z]|[A-z])+\!.*/
+        let commitDefaultFeat = /feat:[\s\S]+|feat\(.+\):[\s\S]+/
+        let commitDefaultBuild = /build:[\s\S]+|build\(.+\):[\s\S]+/
+        let commitDefaultChore = /chore:[\s\S]+|chore\(.+\):[\s\S]+/
+        let commitDefaultCi = /ci:[\s\S]+|ci\(.+\):[\s\S]+/
+        let commitDefaultDocs = /docs:[\s\S]+|docs\(.+\):[\s\S]+/
+        let commitDefaultStyle = /style:[\s\S]+|style\(.+\):[\s\S]+/
+        let commitDefaultRefactor = /refactor:[\s\S]+|refactor\(.+\):[\s\S]+/
+        let commitDefaultPerf = /perf:[\s\S]+|perf\(.+\):[\s\S]+/
+        let commitDefaultFix = /fix:[\s\S]+|fix\(.+\):[\s\S]+/
+        let commitDefaultHotFix = /hotfix:[\s\S]+|hotfix\(.+\):[\s\S]+/
+        let commitDefaultBreakingChange = /[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/
         
         
         
@@ -161,6 +200,30 @@ async function getCommits(number){
         repo: github.context.payload.repository.name,
         pull_number: number
     })
+
+}
+
+async function getRelease(milestone){
+    
+        let number_release = milestone != null? milestone.split(/([a-z]|[A-z])+\.*/).pop() : null
+        console.log(number_release)
+        return octokit.request('GET /repos/{owner}/{repo}/releases', {
+            owner: github.context.payload.repository.owner.name,
+            repo: github.context.payload.repository.name
+        }).then((res)=>{
+            let isRelease = false
+            if(number_release != null){
+                res.data.map(({tag_name})=>{
+                    if(tag_name.split(/([a-z]|[A-z])+\.*/).pop() == number_release) 
+                        isRelease = true;
+                })
+            }
+                
+            return isRelease ? res.push({last_release: res.data[0].tag_name}) : {status: 404, last_release: res.data[0].tag_name}
+        }).catch(()=>{
+            console.log('here')
+            return {status: 404, last_release: null}
+        })
 
 }
 run()
