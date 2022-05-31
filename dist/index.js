@@ -8977,11 +8977,10 @@ function nextTag(lastTag){
             versions[x] = '0'
         }
     }
-        let prefix = ''
-
-        if(versions[0].match('[v0-9]+')){
-            prefix = versions[0].split(/\d/)[0]
-        }
+        // let prefix = ''
+        // if(versions[0].match('[v0-9]+')){
+        //     prefix = versions[0].split(/\d/)[0]
+        // }
 
         versions[0] = versions[0].split(/([a-z]|[A-z])+\.*/).pop()
         if(major != 0){
@@ -9000,7 +8999,7 @@ function nextTag(lastTag){
         minor += Number(versions[1]) 
         patch += Number(versions[2])
 
-        return `${prefix}${major}.${minor}.${patch}`
+        return `${major}.${minor}.${patch}`
 }
 
 async function findTag(){
