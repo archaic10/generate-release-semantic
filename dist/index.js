@@ -8878,7 +8878,6 @@ async function run (){
             try{
                 let {id} = github.context.payload.commits[0]
                 let {number, milestone} = await getNumberPullRequestByCommit(id)
-                console.log(number ,milestone )
                 if(number != null){
                     
                     let res = await getRelease(milestone)
@@ -9068,7 +9067,6 @@ async function getCommits(number){
 async function getRelease(milestone){
     
         let number_release = milestone != null? milestone.split(/([a-z]|[A-z])+\.*/).pop() : null
-        console.log(number_release)
         return octokit.request('GET /repos/{owner}/{repo}/releases', {
             owner: github.context.payload.repository.owner.name,
             repo: github.context.payload.repository.name
@@ -9082,8 +9080,7 @@ async function getRelease(milestone){
             }
                 
             return isRelease ? res.push({last_release: res.data[0].tag_name}) : {status: 404, last_release: res.data[0].tag_name}
-        }).catch(()=>{
-            console.log('here')
+        }).catch(()=>{            
             return {status: 404, last_release: null}
         })
 
