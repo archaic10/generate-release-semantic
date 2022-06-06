@@ -17,14 +17,8 @@ async function run (){
                 let {id} = github.context.payload.commits[0]
                 let {number, milestone} = await getNumberPullRequestByCommit(id)
                 if(number != null){
-                    
-                    let {status, last_release} = await getRelease(milestone)
-                    if(status == 200){
-                        console.log('This pull request is associated with a milestone that has a version equal to a release, so a release will not be generated!')
-                        core.setOutput('success','This pull request is associated with a milestone that has a version equal to a release, so a release will not be generated!')
-                        return
-                    }
-                    calculateAndPrepareContentRelease(number, last_release)
+                    let {last_release, body, id} = await getRelease(milestone)
+                    calculateAndPrepareContentRelease(number, last_release, body, id)
                 }
             }catch(error){
                 core.setFailed('There is no pull request associated with this commit!')
@@ -34,13 +28,17 @@ async function run (){
         }
     }else{
         core.setFailed('Github token is required!')
-    }
-    
+    }    
 }
 
-async function calculateAndPrepareContentRelease(numberPullRequest, last_release){
+async function calculateAndPrepareContentRelease(numberPullRequest, last_release, body, id){
     let dataCommits = await getCommits(numberPullRequest)
-    
+    contentRelease = body != null ? body : contentRelease
+    let fullChange = ''
+    if(contentRelease.length > 19){ 
+        fullChange = await getFullChange(contentRelease)        
+        contentRelease = contentRelease.replace(/\**\Full Changelog\**\:[\s\S]+|feat\(.+\):[\s\S]+/, "")
+    }
     dataCommits.data.map(async (dataCommit)=>{
         let {commit} = dataCommit
         let {message} = commit
@@ -62,7 +60,18 @@ async function calculateAndPrepareContentRelease(numberPullRequest, last_release
 
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
     
-    contentRelease += `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n`
+    contentRelease += fullChange == '' ? `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n` : fullChange
+    if(id != null){
+        let {status} = await updateReleaseNote(last_release, contentRelease, id)
+        if(status == 200){
+            console.log('Release note updated!')
+            core.setOutput('success','Release note updated!')
+            return
+        }else{
+            core.setFailed('Error updating release note!')
+            return
+        }
+    }
     
     let {status} = await gerenateReleaseNote(nextRelease, contentRelease)
     if(status == 201){
@@ -103,6 +112,26 @@ async function gerenateReleaseNote(release, content){
         })
     }catch{
         console.log('Error creating Release check if there is no release for this PR!')
+        return {status: 422}
+    }
+    
+}
+
+async function updateReleaseNote(release, content, id){
+    try{
+        return await octokit.request('PATCH /repos/{owner}/{repo}/releases/{release_id}', {
+            owner: github.context.payload.repository.owner.name,
+            repo: github.context.payload.repository.name,
+            release_id: id,
+            tag_name: release,
+            target_commitish: github.context.payload.repository.default_branch,
+            name: release,
+            body: content,
+            draft: false,
+            prerelease: false
+        })
+    }catch{
+        console.log('Error updating Release check if there is no release for this PR!')
         return {status: 422}
     }
     
@@ -190,6 +219,17 @@ function countSemanticRelease(message){
     }
 }
 
+async function getFullChange(fullChanges){
+    let result = ''
+    fullChanges.split(`\n`).map((fullChange) => {
+        if(/\**\Full Changelog\**\:[\s\S]+|feat\(.+\):[\s\S]+/.test(fullChange)){
+            result =  `\n ${fullChange}`
+            return
+        }
+    })
+    return result
+}
+
 async function getCommits(number){
     return octokit.request('GET /repos/{owner}/{repo}/pulls/{pull_number}/commits', {
         owner: github.context.payload.repository.owner.name,
@@ -199,7 +239,9 @@ async function getCommits(number){
 }
 
 async function getRelease(milestone){
-    
+    let release_milestone = 0
+    let body_milestone = ''
+    let id_release_milestone
     let number_release = milestone != null? milestone.split(/([a-z]|[A-z])+\.*/).pop() : null
     return octokit.request('GET /repos/{owner}/{repo}/releases', {
         owner: github.context.payload.repository.owner.name,
@@ -207,15 +249,19 @@ async function getRelease(milestone){
     }).then((res)=>{
         let isRelease = false
         if(number_release != null){
-            res.data.map(({tag_name})=>{
-                if(tag_name.split(/([a-z]|[A-z])+\.*/).pop() == number_release) 
+            res.data.map(({tag_name, body, id})=>{
+                if(tag_name.split(/([a-z]|[A-z])+\.*/).pop() == number_release){
+                    release_milestone = tag_name
+                    body_milestone = body
+                    id_release_milestone = id
                     isRelease = true;
+                }
             })
         }
             
-        return isRelease ? {status: res.status,last_release: res.data[0].tag_name} : {status: 404, last_release: res.data[0].tag_name}
+        return isRelease ? {status: res.status, last_release: release_milestone, body: body_milestone, id: id_release_milestone } : {status: 404, last_release: res.data[0].tag_name, body:null, id:null}
     }).catch(()=>{            
-        return {status: 404, last_release: null}
+        return {status: 404, last_release: null, body:null, id:null}
     })
 
 }
