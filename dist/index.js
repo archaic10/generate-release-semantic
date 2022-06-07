@@ -8923,25 +8923,25 @@ async function calculateAndPrepareContentRelease(numberPullRequest, last_release
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
     
     contentRelease += fullChange == '' ? `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n` : fullChange
-    // if(id != null){
-    //     let {status} = await updateReleaseNote(last_release, contentRelease, id)
-    //     if(status == 200){
-    //         console.log('Release note updated!')
-    //         core.setOutput('success','Release note updated!')
-    //         return
-    //     }else{
-    //         core.setFailed('Error updating release note!')
-    //         return
-    //     }
-    // }
+    if(id != null){
+        let {status} = await updateReleaseNote(last_release, contentRelease, id)
+        if(status == 200){
+            console.log('Release note updated!')
+            core.setOutput('success','Release note updated!')
+            return
+        }else{
+            core.setFailed('Error updating release note!')
+            return
+        }
+    }
     
-    // let {status} = await gerenateReleaseNote(nextRelease, contentRelease)
-    // if(status == 201){
-    //     console.log('Release note created!')
-    //     core.setOutput('success','Release note created!')
-    // }else{
-    //     core.setFailed('Error creating release note!')
-    // }
+    let {status} = await gerenateReleaseNote(nextRelease, contentRelease)
+    if(status == 201){
+        console.log('Release note created!')
+        core.setOutput('success','Release note created!')
+    }else{
+        core.setFailed('Error creating release note!')
+    }
 }
 
 async function getNumberPullRequestByCommit(commitSha){
