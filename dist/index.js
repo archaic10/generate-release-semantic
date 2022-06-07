@@ -8923,25 +8923,25 @@ async function calculateAndPrepareContentRelease(numberPullRequest, last_release
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
     
     contentRelease += fullChange == '' ? `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n` : fullChange
-    if(id != null){
-        let {status} = await updateReleaseNote(last_release, contentRelease, id)
-        if(status == 200){
-            console.log('Release note updated!')
-            core.setOutput('success','Release note updated!')
-            return
-        }else{
-            core.setFailed('Error updating release note!')
-            return
-        }
-    }
+    // if(id != null){
+    //     let {status} = await updateReleaseNote(last_release, contentRelease, id)
+    //     if(status == 200){
+    //         console.log('Release note updated!')
+    //         core.setOutput('success','Release note updated!')
+    //         return
+    //     }else{
+    //         core.setFailed('Error updating release note!')
+    //         return
+    //     }
+    // }
     
-    let {status} = await gerenateReleaseNote(nextRelease, contentRelease)
-    if(status == 201){
-        console.log('Release note created!')
-        core.setOutput('success','Release note created!')
-    }else{
-        core.setFailed('Error creating release note!')
-    }
+    // let {status} = await gerenateReleaseNote(nextRelease, contentRelease)
+    // if(status == 201){
+    //     console.log('Release note created!')
+    //     core.setOutput('success','Release note created!')
+    // }else{
+    //     core.setFailed('Error creating release note!')
+    // }
 }
 
 async function getNumberPullRequestByCommit(commitSha){
@@ -9044,20 +9044,21 @@ async function findTag(){
 function countSemanticRelease(message){
     let length = message.split('\n')
     
+    if (isMajor(message, length)) {
+        contentRelease += `- ${message} \n`
+        major++
+    }
+
     if (isMinor(message, length)){
         contentRelease += `- ${message} \n`
         minor++
     }
 
-    if (isMinor(message, length)) {
+    if (isPatch(message, length)) {
         contentRelease += `- ${message} \n`
         patch++
     }
 
-    if (isMajor(message, length)) {
-        contentRelease += `- ${message} \n`
-        major++
-    }
     
 }
 
@@ -9067,7 +9068,7 @@ function isMinor(message, length){
     /docs:[\s\S]+|docs\(.+\):[\s\S]+/.test(message) || /style:[\s\S]+|style\(.+\):[\s\S]+/.test(message) ||
     /test:[\s\S]+|test\(.+\):[\s\S]+/.test(message) ||
     /refactor:[\s\S]+|refactor\(.+\):[\s\S]+/.test(message) ||/perf:[\s\S]+|perf\(.+\):[\s\S]+/.test(message)) && minor == 0
-    || length.length >= 3 && length.pop() != '')
+    && !(length.length >= 3 && length.pop() != ''))
 }
 
 function isPatch(message, length){
@@ -9076,7 +9077,7 @@ function isPatch(message, length){
 }
 
 function isMajor(message, length){
-    return (/[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/.test(message) && major == 0 && !(length.length >= 3 && length.pop() != ''))
+    return (/[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/.test(message) && major == 0 || length.length >= 3 && length.pop() != '')
 }
 
 async function getFullChange(fullChanges){
