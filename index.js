@@ -181,42 +181,41 @@ async function findTag(){
 
 function countSemanticRelease(message){
     let length = message.split('\n')
-    if(length.length >= 3 && length.pop() != '' && major == 0 ){
+    
+    if (isMajor(message, length)) {
         contentRelease += `- ${message} \n`
         major++
-    }else{
-        let commitDefaultFeat = /feat:[\s\S]+|feat\(.+\):[\s\S]+/
-        let commitDefaultBuild = /build:[\s\S]+|build\(.+\):[\s\S]+/
-        let commitDefaultChore = /chore:[\s\S]+|chore\(.+\):[\s\S]+/
-        let commitDefaultCi = /ci:[\s\S]+|ci\(.+\):[\s\S]+/
-        let commitDefaultTest = /test:[\s\S]+|test\(.+\):[\s\S]+/
-        let commitDefaultDocs = /docs:[\s\S]+|docs\(.+\):[\s\S]+/
-        let commitDefaultStyle = /style:[\s\S]+|style\(.+\):[\s\S]+/
-        let commitDefaultRefactor = /refactor:[\s\S]+|refactor\(.+\):[\s\S]+/
-        let commitDefaultPerf = /perf:[\s\S]+|perf\(.+\):[\s\S]+/
-        let commitDefaultFix = /fix:[\s\S]+|fix\(.+\):[\s\S]+/
-        let commitDefaultHotFix = /hotfix:[\s\S]+|hotfix\(.+\):[\s\S]+/
-        let commitDefaultBreakingChange = /[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/
-        
-        if ((commitDefaultFeat.test(message) || commitDefaultBuild.test(message) || 
-            commitDefaultChore.test(message) || commitDefaultCi.test(message) || 
-            commitDefaultDocs.test(message) || commitDefaultStyle.test(message) ||
-            commitDefaultTest.test(message) ||
-            commitDefaultRefactor.test(message) ||commitDefaultPerf.test(message)) && minor == 0){
-            contentRelease += `- ${message} \n`
-            minor++
-        }
-
-        if ((commitDefaultFix.test(message) || commitDefaultHotFix.test(message)) && patch == 0) {
-            contentRelease += `- ${message} \n`
-            patch++
-        }
-
-        if (commitDefaultBreakingChange.test(message) && major == 0) {
-            contentRelease += `- ${message} \n`
-            major++
-        }
     }
+
+    if (isMinor(message, length)){
+        contentRelease += `- ${message} \n`
+        minor++
+    }
+
+    if (isPatch(message, length)) {
+        contentRelease += `- ${message} \n`
+        patch++
+    }
+
+    
+}
+
+function isMinor(message, length){
+    return ((/feat:[\s\S]+|feat\(.+\):[\s\S]+/.test(message) || /build:[\s\S]+|build\(.+\):[\s\S]+/.test(message) || 
+    /chore:[\s\S]+|chore\(.+\):[\s\S]+/.test(message) || /ci:[\s\S]+|ci\(.+\):[\s\S]+/.test(message) || 
+    /docs:[\s\S]+|docs\(.+\):[\s\S]+/.test(message) || /style:[\s\S]+|style\(.+\):[\s\S]+/.test(message) ||
+    /test:[\s\S]+|test\(.+\):[\s\S]+/.test(message) ||
+    /refactor:[\s\S]+|refactor\(.+\):[\s\S]+/.test(message) ||/perf:[\s\S]+|perf\(.+\):[\s\S]+/.test(message)) && minor == 0
+    && !(length.length >= 3 && length.pop() != ''))
+}
+
+function isPatch(message, length){
+    return ((/fix:[\s\S]+|fix\(.+\):[\s\S]+/.test(message) || /hotfix:[\s\S]+|hotfix\(.+\):[\s\S]+/.test(message)) && patch == 0
+    && !(length.length >= 3 && length.pop() != ''))
+}
+
+function isMajor(message, length){
+    return (/[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/.test(message) && major == 0 || length.length >= 3 && length.pop() != '')
 }
 
 async function getFullChange(fullChanges){
