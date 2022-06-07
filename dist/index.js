@@ -9061,7 +9061,7 @@ function countSemanticRelease(message){
     
 }
 
-function isMajor(message, length){
+function isMinor(message, length){
     return ((/feat:[\s\S]+|feat\(.+\):[\s\S]+/.test(message) || /build:[\s\S]+|build\(.+\):[\s\S]+/.test(message) || 
     /chore:[\s\S]+|chore\(.+\):[\s\S]+/.test(message) || /ci:[\s\S]+|ci\(.+\):[\s\S]+/.test(message) || 
     /docs:[\s\S]+|docs\(.+\):[\s\S]+/.test(message) || /style:[\s\S]+|style\(.+\):[\s\S]+/.test(message) ||
@@ -9070,12 +9070,12 @@ function isMajor(message, length){
     || length.length >= 3 && length.pop() != '')
 }
 
-function isMinor(message, length){
+function isPatch(message, length){
     return ((/fix:[\s\S]+|fix\(.+\):[\s\S]+/.test(message) || /hotfix:[\s\S]+|hotfix\(.+\):[\s\S]+/.test(message)) && patch == 0
     && !(length.length >= 3 && length.pop() != ''))
 }
 
-function isPatch(message, length){
+function isMajor(message, length){
     return (/[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/.test(message) && major == 0 && !(length.length >= 3 && length.pop() != ''))
 }
 
