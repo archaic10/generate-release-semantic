@@ -8921,8 +8921,8 @@ async function calculateAndPrepareContentRelease(numberPullRequest, last_release
     }
 
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
-    
-    contentRelease += fullChange == '' ? `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n` : fullChange
+    if(lastTag != null)
+        contentRelease += fullChange == '' ? `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n` : fullChange
     if(id != null){
         let {status} = await updateReleaseNote(last_release, contentRelease, id)
         if(status == 200){
