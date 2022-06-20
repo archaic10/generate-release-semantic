@@ -9,3 +9,7 @@ uses: archaic10/generate-release-semantic@main
 with:
     github-token: ${{ secrets.GITHUB_TOKEN }}    
 ```
+
+## Diagram
+
+![img](https://github.com/archaic10/generate-release-semantic/blob/main/img/fluxo.png)
