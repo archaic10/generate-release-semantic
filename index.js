@@ -10,25 +10,28 @@ var patch = 0
 var contentRelease = `## What's Changed \n`
 
 async function run (){
-    if(githubToken){
-        let branch_event = github.context.payload.ref.split('/')[2]
-        if(branch_event == github.context.payload.repository.default_branch){
-            try{
-                let {id} = github.context.payload.commits[0]
-                let {number, milestone} = await getNumberPullRequestByCommit(id)
-                if(number != null){
-                    let {last_release, body, id} = await getRelease(milestone)
-                    calculateAndPrepareContentRelease(number, last_release, body, id)
-                }
-            }catch(error){
-                core.setFailed('There is no pull request associated with this commit!')
-            }
-        }else{
-            core.setFailed('This action will only be performed when the branch is merged with the default branch!')
-        }
-    }else{
+    if(!githubToken){
         core.setFailed('Github token is required!')
-    }    
+        return
+    }
+
+    let branch_event = github.context.payload.ref.split('/')[2]
+    if(branch_event != github.context.payload.repository.default_branch){
+        core.setFailed('This action will only be performed when the branch is merged with the default branch!')
+        return
+    }
+    
+    try{
+        let {id} = github.context.payload.commits[0]
+        let {number, milestone} = await getNumberPullRequestByCommit(id)
+        if(number != null){
+            let {last_release, body, id} = await getRelease(milestone)
+            calculateAndPrepareContentRelease(number, last_release, body, id)
+        }
+    }catch(error){
+        core.setFailed('There is no pull request associated with this commit!')
+    }
+    
 }
 
 async function calculateAndPrepareContentRelease(numberPullRequest, last_release, body, id){
@@ -59,27 +62,40 @@ async function calculateAndPrepareContentRelease(numberPullRequest, last_release
     }
 
     let nextRelease = lastTag != undefined && lastTag != '' && lastTag != null ? nextTag(lastTag) : `${major}.${minor}.${patch}`
-    if(lastTag != null)
+    
+    if(lastTag != null){
+        if(`${major}.${minor}.${patch}`.split(/([a-z]|[A-z])+\.*/).pop() == lastTag.split(/([a-z]|[A-z])+\.*/).pop() ){        
+            let data_last_release = await getRelease(lastTag)
+             last_release =  data_last_release.last_release
+             id = data_last_release.id
+             fullChange = await getFullChange(data_last_release.body)
+             data_last_release.body = data_last_release.body.replace(/\**\Full Changelog\**\:[\s\S]+|feat\(.+\):[\s\S]+/, "").trim()
+             data_last_release.body+=  `\n${contentRelease.replace("## What's Changed \n","")}`
+             contentRelease = data_last_release.body
+         }
         contentRelease += fullChange == '' ? `\n **Full Changelog**: https://github.com/${github.context.payload.repository.owner.name}/${github.context.payload.repository.name}/compare/${last_release}...${nextRelease}\n` : fullChange
+    }
+    
     if(id != null){
         let {status} = await updateReleaseNote(last_release, contentRelease, id)
-        if(status == 200){
-            console.log('Release note updated!')
-            core.setOutput('success','Release note updated!')
-            return
-        }else{
+        if(status != 200){
             core.setFailed('Error updating release note!')
             return
         }
+
+        console.log('Release note updated!')
+        core.setOutput('success','Release note updated!')
+        return
     }
     
     let {status} = await gerenateReleaseNote(nextRelease, contentRelease)
-    if(status == 201){
-        console.log('Release note created!')
-        core.setOutput('success','Release note created!')
-    }else{
+    if(status != 201){
         core.setFailed('Error creating release note!')
+        return
     }
+
+    console.log('Release note created!')
+    core.setOutput('success','Release note created!')
 }
 
 async function getNumberPullRequestByCommit(commitSha){
@@ -111,7 +127,7 @@ async function gerenateReleaseNote(release, content){
             generate_release_notes: false
         })
     }catch{
-        console.log('Error creating Release check if there is no release for this PR!')
+        console.log('Error creating a release!')
         return {status: 422}
     }
     
@@ -131,7 +147,7 @@ async function updateReleaseNote(release, content, id){
             prerelease: false
         })
     }catch{
-        console.log('Error updating Release check if there is no release for this PR!')
+        console.log('Error update Release!')
         return {status: 422}
     }
     
@@ -183,25 +199,24 @@ function countSemanticRelease(message){
     let length = message.split('\n')
     
     if (isMajor(message, length)) {
-        contentRelease += `- ${message} \n`
         major++
     }
 
     if (isMinor(message, length)){
-        contentRelease += `- ${message} \n`
         minor++
     }
 
     if (isPatch(message, length)) {
-        contentRelease += `- ${message} \n`
         patch++
     }
 
-    
+    if(isNotPatchAndNotMinorAndNotMajor(message,length)){
+        contentRelease += `- ${message} \n`
+    }
 }
 
-function isMinor(message, length){
-    return ((/feat:[\s\S]+|feat\(.+\):[\s\S]+/.test(message) || /build:[\s\S]+|build\(.+\):[\s\S]+/.test(message) || 
+function isNotPatchAndNotMinorAndNotMajor(message,length){
+    return ((/build:[\s\S]+|build\(.+\):[\s\S]+/.test(message) || 
     /chore:[\s\S]+|chore\(.+\):[\s\S]+/.test(message) || /ci:[\s\S]+|ci\(.+\):[\s\S]+/.test(message) || 
     /docs:[\s\S]+|docs\(.+\):[\s\S]+/.test(message) || /style:[\s\S]+|style\(.+\):[\s\S]+/.test(message) ||
     /test:[\s\S]+|test\(.+\):[\s\S]+/.test(message) ||
@@ -209,12 +224,29 @@ function isMinor(message, length){
     && !(length.length >= 3 && length.pop() != ''))
 }
 
+function isMinor(message, length){
+    if((/feat:[\s\S]+|feat\(.+\):[\s\S]+/.test(message)) && !(length.length >= 3 && length.pop() != '')){
+        contentRelease += `- ${message} \n`
+    }
+
+    return ((/feat:[\s\S]+|feat\(.+\):[\s\S]+/.test(message)) && minor == 0 
+        && !(length.length >= 3 && length.pop() != ''))
+}
+
 function isPatch(message, length){
+    if(((/fix:[\s\S]+|fix\(.+\):[\s\S]+/.test(message) || /hotfix:[\s\S]+|hotfix\(.+\):[\s\S]+/.test(message)) && !(length.length >= 3 && length.pop() != ''))){
+        contentRelease += `- ${message} \n`
+    }
+
     return ((/fix:[\s\S]+|fix\(.+\):[\s\S]+/.test(message) || /hotfix:[\s\S]+|hotfix\(.+\):[\s\S]+/.test(message)) && patch == 0
-    && !(length.length >= 3 && length.pop() != ''))
+        && !(length.length >= 3 && length.pop() != ''))
 }
 
 function isMajor(message, length){
+    if(/[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/.test(message) || length.length >= 3 && length.pop() != ''){
+        contentRelease += `- ${message} \n`
+    }
+    
     return (/[a-zA-Z]+!:[\s\S]+|[a-zA-Z]+\(.+\)!:[\s\S]+/.test(message) && major == 0 || length.length >= 3 && length.pop() != '')
 }
 
@@ -222,7 +254,7 @@ async function getFullChange(fullChanges){
     let result = ''
     fullChanges.split(`\n`).map((fullChange) => {
         if(/\**\Full Changelog\**\:[\s\S]+|feat\(.+\):[\s\S]+/.test(fullChange)){
-            result =  `\n ${fullChange}`
+            result =  `\n${fullChange}`
             return
         }
     })
